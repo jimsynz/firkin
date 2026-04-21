@@ -3,6 +3,8 @@ defmodule Firkin.Auth.SigV4 do
   AWS Signature Version 4 implementation for server-side verification.
   """
 
+  require Logger
+
   @type parsed_header :: %{
           access_key_id: String.t(),
           credential_scope: String.t(),
@@ -123,6 +125,7 @@ defmodule Firkin.Auth.SigV4 do
     if secure_compare(expected_signature, parsed.signature) do
       :ok
     else
+      log_mismatch(:header, conn, parsed, canonical_request, string_to_sign, expected_signature)
       {:error, :invalid_signature}
     end
   end
@@ -153,6 +156,15 @@ defmodule Firkin.Auth.SigV4 do
       if secure_compare(expected_signature, parsed.signature) do
         :ok
       else
+        log_mismatch(
+          :presigned,
+          conn,
+          parsed,
+          canonical_request,
+          string_to_sign,
+          expected_signature
+        )
+
         {:error, :invalid_signature}
       end
     end
@@ -230,15 +242,10 @@ defmodule Firkin.Auth.SigV4 do
   end
 
   defp canonical_uri(conn) do
-    path = conn.request_path || "/"
-
-    if path == "/" do
-      "/"
-    else
-      path
-      |> String.split("/")
-      |> Enum.map_join("/", &uri_encode/1)
-    end
+    # SigV4 canonical URI is the on-wire (already-URI-encoded) path.
+    # Bandit exposes conn.request_path in that form; re-encoding it here
+    # would double-encode percent escapes (e.g. %20 → %2520).
+    conn.request_path || "/"
   end
 
   defp build_canonical_query_string(""), do: ""
@@ -305,6 +312,32 @@ defmodule Firkin.Auth.SigV4 do
   end
 
   defp parse_amz_date(_), do: {:error, :invalid_signature}
+
+  defp log_mismatch(kind, conn, parsed, canonical_request, string_to_sign, expected_signature) do
+    headers_dump =
+      conn.req_headers
+      |> Enum.map_join("\n", fn {k, v} -> "  #{k}: #{v}" end)
+
+    Logger.debug("""
+    Firkin SigV4 mismatch (#{kind})
+    method: #{conn.method}
+    request_path: #{inspect(conn.request_path)}
+    query_string: #{inspect(conn.query_string)}
+    access_key_id: #{parsed.access_key_id}
+    signed_headers: #{Enum.join(parsed.signed_headers, ";")}
+    client_signature:   #{parsed.signature}
+    expected_signature: #{expected_signature}
+
+    Canonical request:
+    #{canonical_request}
+
+    String to sign:
+    #{string_to_sign}
+
+    Request headers:
+    #{headers_dump}
+    """)
+  end
 
   defp hmac_sha256(key, data), do: :crypto.mac(:hmac, :sha256, key, data)
   defp hex_hmac_sha256(key, data), do: Base.encode16(hmac_sha256(key, data), case: :lower)
