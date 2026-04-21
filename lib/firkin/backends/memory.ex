@@ -1,11 +1,48 @@
-defmodule Firkin.Test.MemoryBackend do
+defmodule Firkin.Backends.Memory do
   @moduledoc """
-  In-memory S3 backend for testing. Stores all state in an ETS table.
+  Reference implementation of `Firkin.Backend` — stores credentials,
+  buckets, objects, and multipart uploads in a named ETS table.
+
+  This module exists for three purposes:
+
+    1. **Reference** — every callback in `Firkin.Backend` has a working
+       implementation here. Read the source if you're unsure how your
+       own backend should shape its return values (`Firkin.Object`,
+       `Firkin.ListResult`, `Firkin.DeleteResult`, etc.).
+
+    2. **Manual testing** — the default backend for `mix firkin.serve`,
+       letting you drive Firkin from `aws` CLI / `mc` / any S3 client
+       without writing a storage layer first.
+
+    3. **Test double** — downstream projects using Firkin-compatible
+       tooling can point their tests at this backend instead of
+       standing up MinIO.
+
+  **Not for production use.** All state lives in a single ETS table and
+  disappears when the owning BEAM process exits. No concurrency controls
+  beyond ETS atomicity. No persistence. No quotas. No pagination for
+  `ListObjectsV2`, `ListMultipartUploads`, or `ListParts`.
+
+  ## Usage
+
+      Firkin.Backends.Memory.start()
+      Firkin.Backends.Memory.add_credential("AKID", "SECRET")
+
+      forward "/s3", Firkin.Plug,
+        backend: Firkin.Backends.Memory,
+        region: "us-east-1"
+
+  Implements the streaming variants of `put_object_stream/5` and
+  `upload_part_stream/6`, so the Plug's `:max_buffered_put_bytes` cap
+  is bypassed when this backend is used.
   """
   @behaviour Firkin.Backend
 
   @table __MODULE__
 
+  @doc """
+  Creates the ETS table if it does not exist and resets all state.
+  """
   @spec start :: :ok
   def start do
     if :ets.whereis(@table) == :undefined do
@@ -15,6 +52,9 @@ defmodule Firkin.Test.MemoryBackend do
     reset()
   end
 
+  @doc """
+  Clears all stored state. Leaves the ETS table in place.
+  """
   @spec reset :: :ok
   def reset do
     :ets.delete_all_objects(@table)
@@ -25,6 +65,10 @@ defmodule Firkin.Test.MemoryBackend do
     :ok
   end
 
+  @doc """
+  Registers an access-key/secret-key credential pair. The identity
+  stored alongside is `%{user: access_key_id}` — adequate for demos.
+  """
   @spec add_credential(String.t(), String.t()) :: :ok
   def add_credential(access_key_id, secret_access_key) do
     [{:credentials, creds}] = :ets.lookup(@table, :credentials)

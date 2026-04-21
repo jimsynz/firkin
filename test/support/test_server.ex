@@ -5,7 +5,7 @@ defmodule Firkin.Test.TestServer do
 
   @spec start(keyword()) :: {:ok, port :: pos_integer()}
   def start(opts \\ []) do
-    backend = Keyword.get(opts, :backend, Firkin.Test.MemoryBackend)
+    backend = Keyword.get(opts, :backend, Firkin.Backends.Memory)
     region = Keyword.get(opts, :region, "us-east-1")
 
     plug_opts = [backend: backend, region: region]

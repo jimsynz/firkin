@@ -1,7 +1,8 @@
 defmodule Firkin.PlugTest do
   use ExUnit.Case, async: false
 
-  alias Firkin.Test.{MemoryBackend, NonStreamingBackend, SigV4Helper}
+  alias Firkin.Backends.Memory, as: MemoryBackend
+  alias Firkin.Test.{NonStreamingBackend, SigV4Helper}
 
   @access_key "TESTKEY123"
   @secret_key "TESTSECRET456"

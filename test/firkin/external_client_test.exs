@@ -10,7 +10,8 @@ defmodule Firkin.ExternalClientTest do
   """
   use ExUnit.Case, async: false
 
-  alias Firkin.Test.{MemoryBackend, TestServer}
+  alias Firkin.Backends.Memory, as: MemoryBackend
+  alias Firkin.Test.TestServer
 
   @access_key "EXTTEST123"
   @secret_key "EXTSECRET456"

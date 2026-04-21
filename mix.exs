@@ -14,6 +14,7 @@ defmodule Firkin.MixProject do
       consolidate_protocols: Mix.env() != :dev,
       deps: deps(),
       description: @moduledoc,
+      dialyzer: [plt_add_apps: [:mix, :iex]],
       docs: docs(),
       elixir: "~> 1.19",
       elixirc_paths: elixirc_paths(Mix.env()),
@@ -55,7 +56,7 @@ defmodule Firkin.MixProject do
     [
       {:plug, "~> 1.15"},
       {:saxy, "~> 1.6"},
-      {:bandit, "~> 1.5", only: [:test]},
+      {:bandit, "~> 1.5", only: [:dev, :test]},
       {:ex_aws, "~> 2.6", only: [:test]},
       {:ex_aws_s3, "~> 2.5", only: [:test]},
       {:hackney, "~> 1.9", only: [:test]},
