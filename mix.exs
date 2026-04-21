@@ -56,6 +56,7 @@ defmodule Firkin.MixProject do
     [
       {:plug, "~> 1.15"},
       {:saxy, "~> 1.6"},
+      {:telemetry, "~> 1.3"},
       {:bandit, "~> 1.5", only: [:dev, :test]},
       {:ex_aws, "~> 2.6", only: [:test]},
       {:ex_aws_s3, "~> 2.5", only: [:test]},

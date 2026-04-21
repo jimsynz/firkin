@@ -51,17 +51,57 @@ defmodule Firkin.Plug do
   @spec call(Plug.Conn.t(), map()) :: Plug.Conn.t()
   def call(conn, opts) do
     request_id = generate_request_id(opts.request_id_prefix)
+    {bucket, key} = extract_bucket_key(conn, opts.hostname)
+    query = URI.decode_query(conn.query_string)
 
-    conn
-    |> Plug.Conn.put_resp_header("x-amz-request-id", request_id)
-    |> Plug.Conn.put_resp_header("server", "Firkin")
-    |> authenticate_and_dispatch(opts, request_id)
+    operation =
+      Firkin.Telemetry.classify_operation(conn.method, bucket, key, query, conn.req_headers)
+
+    start_metadata = %{
+      method: conn.method,
+      request_path: conn.request_path,
+      request_id: request_id,
+      operation: operation,
+      bucket: bucket,
+      key: key
+    }
+
+    {start_time, start_metadata} = Firkin.Telemetry.start(start_metadata)
+
+    conn =
+      conn
+      |> Plug.Conn.put_private(:firkin_operation, operation)
+      |> Plug.Conn.put_resp_header("x-amz-request-id", request_id)
+      |> Plug.Conn.put_resp_header("server", "Firkin")
+
+    run_request(conn, opts, request_id, bucket, key, query, start_time, start_metadata)
   end
 
-  defp authenticate_and_dispatch(conn, opts, request_id) do
+  defp run_request(conn, opts, request_id, bucket, key, query, start_time, start_metadata) do
+    conn = authenticate_and_dispatch(conn, opts, request_id, bucket, key, query)
+    Firkin.Telemetry.stop(start_time, stop_metadata(conn, start_metadata))
+    conn
+  rescue
+    e ->
+      stacktrace = __STACKTRACE__
+      Logger.error("Firkin dispatch error: #{Exception.message(e)}")
+      conn = send_error(conn, %Firkin.Error{code: :internal_error, request_id: request_id})
+
+      metadata =
+        conn
+        |> stop_metadata(start_metadata)
+        |> Map.merge(%{kind: :error, reason: e, stacktrace: stacktrace})
+
+      Firkin.Telemetry.exception(start_time, metadata)
+      conn
+  end
+
+  defp authenticate_and_dispatch(conn, opts, request_id, bucket, key, query) do
     case Firkin.Auth.authenticate(conn, opts.backend) do
       {:ok, auth_context} ->
-        dispatch(conn, opts, auth_context, request_id)
+        conn
+        |> Plug.Conn.put_private(:firkin_access_key_id, auth_context.access_key_id)
+        |> route(conn.method, bucket, key, query, opts, auth_context, request_id)
 
       {:error, :credential_not_found} ->
         send_error(conn, %Firkin.Error{code: :access_denied, request_id: request_id})
@@ -77,16 +117,12 @@ defmodule Firkin.Plug do
     end
   end
 
-  defp dispatch(conn, opts, auth_context, request_id) do
-    {bucket, key} = extract_bucket_key(conn, opts.hostname)
-    query = URI.decode_query(conn.query_string)
-
-    route(conn, conn.method, bucket, key, query, opts, auth_context, request_id)
-  rescue
-    e ->
-      Logger.error("Firkin dispatch error: #{Exception.message(e)}")
-
-      send_error(conn, %Firkin.Error{code: :internal_error, request_id: request_id})
+  defp stop_metadata(conn, start_metadata) do
+    Map.merge(start_metadata, %{
+      status: conn.status,
+      access_key_id: conn.private[:firkin_access_key_id],
+      error_code: conn.private[:firkin_error_code]
+    })
   end
 
   # Service-level: GET / → ListBuckets
@@ -539,8 +575,10 @@ defmodule Firkin.Plug do
     |> Plug.Conn.send_resp(status, xml)
   end
 
-  defp send_error(conn, %Firkin.Error{code: :not_modified}) do
-    Plug.Conn.send_resp(conn, 304, "")
+  defp send_error(conn, %Firkin.Error{code: :not_modified} = error) do
+    conn
+    |> Plug.Conn.put_private(:firkin_error_code, error.code)
+    |> Plug.Conn.send_resp(304, "")
   end
 
   defp send_error(conn, %Firkin.Error{} = error) do
@@ -548,6 +586,7 @@ defmodule Firkin.Plug do
     xml = Firkin.XML.error_response(error)
 
     conn
+    |> Plug.Conn.put_private(:firkin_error_code, error.code)
     |> Plug.Conn.put_resp_content_type("application/xml")
     |> Plug.Conn.send_resp(status, xml)
   end

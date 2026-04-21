@@ -49,6 +49,30 @@ Mount the plug in your router:
 forward "/s3", Firkin.Plug, backend: MyApp.S3Backend, region: "us-east-1"
 ```
 
+## Telemetry
+
+Firkin emits a `[:firkin, :request, :start | :stop | :exception]` span for
+every request. Attach handlers using module/function captures — not
+anonymous functions — ideally from your `Application.start/2`:
+
+```elixir
+:telemetry.attach_many(
+  "my-firkin-handler",
+  [
+    [:firkin, :request, :start],
+    [:firkin, :request, :stop],
+    [:firkin, :request, :exception]
+  ],
+  &MyApp.FirkinTelemetry.handle_event/4,
+  %{}
+)
+```
+
+Stop metadata includes the S3 `:operation` (e.g. `:put_object`), the
+`:bucket`, `:key`, HTTP `:status`, the authenticated `:access_key_id` and
+(for error responses) the `:error_code`. See `Firkin.Telemetry` for the
+full event contract.
+
 ## Licence
 
 [Apache-2.0](LICENSE)
