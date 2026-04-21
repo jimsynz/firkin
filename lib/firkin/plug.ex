@@ -592,9 +592,28 @@ defmodule Firkin.Plug do
   end
 
   defp extract_bucket_key(conn, hostname) do
-    case extract_virtual_hosted_bucket(conn, hostname) do
-      {:ok, bucket} -> extract_key_from_path(bucket, conn.path_info)
-      :path_style -> extract_bucket_key_from_path(conn.path_info)
+    {bucket, key} =
+      case extract_virtual_hosted_bucket(conn, hostname) do
+        {:ok, bucket} -> extract_key_from_path(bucket, conn.path_info)
+        :path_style -> extract_bucket_key_from_path(conn.path_info)
+      end
+
+    {bucket, restore_trailing_slash(key, conn.request_path)}
+  end
+
+  # `conn.path_info` drops trailing empty segments, so `PUT /bucket/foo/`
+  # arrives as `["bucket", "foo"]` — indistinguishable from
+  # `PUT /bucket/foo`. S3 folder markers rely on the trailing slash being
+  # part of the object key (e.g. Cyberduck creates directories by
+  # PUT-ing `dir/` as a zero-byte object), so reinstate it from
+  # `request_path` when the wire path had one.
+  defp restore_trailing_slash(nil, _path), do: nil
+
+  defp restore_trailing_slash(key, path) do
+    if is_binary(path) and String.ends_with?(path, "/") and not String.ends_with?(key, "/") do
+      key <> "/"
+    else
+      key
     end
   end
 

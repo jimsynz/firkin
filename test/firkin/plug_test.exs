@@ -185,6 +185,16 @@ defmodule Firkin.PlugTest do
       assert conn.resp_body == "all content"
       assert Plug.Conn.get_resp_header(conn, "accept-ranges") == ["bytes"]
     end
+
+    test "PutObject preserves a trailing slash in the key (folder marker)", %{opts: opts} do
+      put_conn = signed_conn(:put, "/obj-bucket/folder/", body: "") |> call(opts)
+      assert put_conn.status == 200
+
+      list_conn = signed_conn(:get, "/obj-bucket?list-type=2") |> call(opts)
+      assert list_conn.status == 200
+      assert list_conn.resp_body =~ "<Key>folder/</Key>"
+      refute list_conn.resp_body =~ "<Key>folder</Key>"
+    end
   end
 
   describe "ListObjectsV2 (GET /{bucket})" do
