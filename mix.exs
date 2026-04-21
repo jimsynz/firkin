@@ -4,7 +4,7 @@ defmodule Firkin.MixProject do
   @moduledoc """
   S3-compatible object storage server as a Plug-based Elixir library.
   """
-  @version "0.1.0"
+  @version "0.2.0"
   @source_url "https://harton.dev/james/firkin"
 
   def project do
