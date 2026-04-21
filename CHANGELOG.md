@@ -5,6 +5,17 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## v0.2.1 (2026-04-21)
+
+
+
+
+### Bug Fixes:
+
+* preserve trailing slash in object keys for folder markers (#3) by James Harton
+
+* stop double-encoding the SigV4 canonical URI (#2) by James Harton
+
 ## v0.2.0 (2026-04-21)
 
 
