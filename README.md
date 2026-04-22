@@ -73,6 +73,10 @@ Stop metadata includes the S3 `:operation` (e.g. `:put_object`), the
 (for error responses) the `:error_code`. See `Firkin.Telemetry` for the
 full event contract.
 
+## GitHub Mirror
+
+Eventually, [Forgejo](https://www.forgejo.org) will support fully federated operation, but for now there's a [mirror of this repository on GitHub](https://www.github.com/jimsynz/firkin) - feel free to open issues and PRs there.
+
 ## Licence
 
 [Apache-2.0](LICENSE)
