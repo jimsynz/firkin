@@ -60,7 +60,7 @@ defmodule Firkin.MixProject do
       {:bandit, "~> 1.5", only: [:dev, :test]},
       {:ex_aws, "~> 2.6", only: [:test]},
       {:ex_aws_s3, "~> 2.5", only: [:test]},
-      {:hackney, "~> 4.0", only: [:test]},
+      {:hackney, "~> 1.9", only: [:test]},
       {:sweet_xml, "~> 0.7", only: [:test]},
       {:jason, "~> 1.0", only: [:dev, :test]},
       {:credo, "~> 1.6", only: [:dev, :test], runtime: false},
