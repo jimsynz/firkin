@@ -5,6 +5,15 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## v0.2.2 (2026-05-09)
+
+
+
+
+### Bug Fixes:
+
+* conditionally compile `firkin.serve` mix task in dev/test only (#4) by James Harton
+
 ## v0.2.1 (2026-04-21)
 
 
