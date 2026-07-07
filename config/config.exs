@@ -12,4 +12,6 @@ end
 
 if Mix.env() == :test do
   config :logger, level: :warning
+
+  config :ex_aws, http_client: ExAws.Request.Req
 end

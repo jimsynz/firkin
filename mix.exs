@@ -60,7 +60,7 @@ defmodule Firkin.MixProject do
       {:bandit, "~> 1.5", only: [:dev, :test]},
       {:ex_aws, "~> 2.6", only: [:test]},
       {:ex_aws_s3, "~> 2.5", only: [:test]},
-      {:hackney, "~> 1.9", only: [:test]},
+      {:req, "~> 0.5", only: [:dev, :test]},
       {:sweet_xml, "~> 0.7", only: [:test]},
       {:jason, "~> 1.0", only: [:dev, :test]},
       {:credo, "~> 1.6", only: [:dev, :test], runtime: false},
@@ -68,7 +68,6 @@ defmodule Firkin.MixProject do
       {:doctor, "~> 0.23", only: [:dev, :test], runtime: false},
       {:ex_check, "~> 0.16", only: [:dev, :test], runtime: false},
       {:ex_doc, "~> 0.40", only: [:dev, :test], runtime: false},
-      {:earmark, "~> 1.4", only: [:dev, :test], runtime: false},
       {:git_ops, "~> 2.4", only: [:dev, :test], runtime: false},
       {:igniter, "~> 0.8", only: [:dev, :test]},
       {:mix_audit, "~> 2.0", only: [:dev, :test], runtime: false}
