@@ -47,13 +47,15 @@ defmodule Firkin.Telemetry do
 
   ### `[:firkin, :request, :exception]`
 
-  Emitted when an unhandled exception escapes request dispatch. The plug
-  still sends a `500 InternalError` response to the client.
+  Emitted when an unhandled exception escapes request dispatch. Firkin
+  re-raises after emitting this event, letting the exception propagate to
+  the enclosing Plug pipeline rather than sending its own response.
 
     * Measurements: `%{monotonic_time, duration}`
     * Metadata: all start metadata plus the fields described for `:stop`
       (best-effort — `:operation` may be `:unknown` if the exception
-      happened before classification) and
+      happened before classification; `:status` and `:error_code` are
+      `nil` because no response was sent) and
       * `:kind` — `:error | :exit | :throw`
       * `:reason` — the raised term
       * `:stacktrace` — the captured stacktrace

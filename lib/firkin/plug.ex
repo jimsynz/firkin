@@ -32,8 +32,6 @@ defmodule Firkin.Plug do
 
   @behaviour Plug
 
-  require Logger
-
   @impl Plug
   @spec init(keyword()) :: map()
   def init(opts) do
@@ -83,17 +81,13 @@ defmodule Firkin.Plug do
     conn
   rescue
     e ->
-      stacktrace = __STACKTRACE__
-      Logger.error("Firkin dispatch error: #{Exception.message(e)}")
-      conn = send_error(conn, %Firkin.Error{code: :internal_error, request_id: request_id})
-
       metadata =
         conn
         |> stop_metadata(start_metadata)
-        |> Map.merge(%{kind: :error, reason: e, stacktrace: stacktrace})
+        |> Map.merge(%{kind: :error, reason: e, stacktrace: __STACKTRACE__})
 
       Firkin.Telemetry.exception(start_time, metadata)
-      conn
+      reraise e, __STACKTRACE__
   end
 
   defp authenticate_and_dispatch(conn, opts, request_id, bucket, key, query) do

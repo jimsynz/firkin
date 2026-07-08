@@ -220,11 +220,12 @@ defmodule Firkin.TelemetryTest do
       def copy_object(_, _, _, _, _), do: {:error, %Firkin.Error{code: :no_such_key}}
     end
 
-    test "emits exception event when a handler raises" do
+    test "emits exception event and re-raises when a handler raises" do
       opts = Firkin.Plug.init(backend: CrashingBackend)
 
-      conn = signed_conn(:get, "/") |> call(opts)
-      assert conn.status == 500
+      assert_raise RuntimeError, "boom", fn ->
+        signed_conn(:get, "/") |> call(opts)
+      end
 
       assert_receive {:telemetry_event, [:firkin, :request, :start], _, start_meta}
       assert start_meta.operation == :list_buckets
@@ -232,8 +233,8 @@ defmodule Firkin.TelemetryTest do
       assert_receive {:telemetry_event, [:firkin, :request, :exception], meas, meta}
       assert is_integer(meas.duration)
       assert meta.operation == :list_buckets
-      assert meta.status == 500
-      assert meta.error_code == :internal_error
+      assert meta.status == nil
+      assert meta.error_code == nil
       assert meta.kind == :error
       assert %RuntimeError{message: "boom"} = meta.reason
       assert is_list(meta.stacktrace)
