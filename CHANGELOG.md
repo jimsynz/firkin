@@ -5,6 +5,15 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## v0.2.3 (2026-07-08)
+
+
+
+
+### Bug Fixes:
+
+* let dispatch exceptions bubble up to Plug (#36) by James Harton
+
 ## v0.2.2 (2026-05-09)
 
 
