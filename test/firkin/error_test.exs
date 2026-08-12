@@ -19,8 +19,11 @@ defmodule Firkin.ErrorTest do
       assert Error.to_http_status(:invalid_part_order) == 400
       assert Error.to_http_status(:precondition_failed) == 412
       assert Error.to_http_status(:not_modified) == 304
+      assert Error.to_http_status(:invalid_range) == 416
       assert Error.to_http_status(:internal_error) == 500
       assert Error.to_http_status(:not_implemented) == 501
+      assert Error.to_http_status(:service_unavailable) == 503
+      assert Error.to_http_status(:slow_down) == 503
     end
   end
 
@@ -29,6 +32,8 @@ defmodule Firkin.ErrorTest do
       assert Error.to_s3_code(:no_such_key) == "NoSuchKey"
       assert Error.to_s3_code(:access_denied) == "AccessDenied"
       assert Error.to_s3_code(:internal_error) == "InternalError"
+      assert Error.to_s3_code(:service_unavailable) == "ServiceUnavailable"
+      assert Error.to_s3_code(:slow_down) == "SlowDown"
     end
   end
 end

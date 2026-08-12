@@ -307,6 +307,10 @@ defmodule Firkin.XML do
   defp default_message(:not_modified), do: "Not Modified"
   defp default_message(:precondition_failed), do: "Precondition Failed"
 
+  defp default_message(:service_unavailable), do: "Service is unable to handle request"
+
   defp default_message(:signature_does_not_match),
     do: "The request signature we calculated does not match the signature you provided"
+
+  defp default_message(:slow_down), do: "Please reduce your request rate"
 end

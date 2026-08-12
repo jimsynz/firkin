@@ -31,7 +31,9 @@ defmodule Firkin.Error do
           | :not_implemented
           | :precondition_failed
           | :not_modified
+          | :service_unavailable
           | :signature_does_not_match
+          | :slow_down
 
   @enforce_keys [:code]
   defstruct [:code, :message, :resource, :request_id]
@@ -57,6 +59,8 @@ defmodule Firkin.Error do
   def to_http_status(:invalid_range), do: 416
   def to_http_status(:internal_error), do: 500
   def to_http_status(:not_implemented), do: 501
+  def to_http_status(:service_unavailable), do: 503
+  def to_http_status(:slow_down), do: 503
 
   @doc """
   Returns the S3 error code string for the given error code atom.
@@ -78,5 +82,7 @@ defmodule Firkin.Error do
   def to_s3_code(:not_implemented), do: "NotImplemented"
   def to_s3_code(:not_modified), do: "NotModified"
   def to_s3_code(:precondition_failed), do: "PreconditionFailed"
+  def to_s3_code(:service_unavailable), do: "ServiceUnavailable"
   def to_s3_code(:signature_does_not_match), do: "SignatureDoesNotMatch"
+  def to_s3_code(:slow_down), do: "SlowDown"
 end

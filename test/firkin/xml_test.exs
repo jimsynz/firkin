@@ -67,6 +67,14 @@ defmodule Firkin.XMLTest do
       xml = XML.error_response(error)
       assert xml =~ "<Message>Access Denied</Message>"
     end
+
+    test "uses default message for availability errors" do
+      assert XML.error_response(%Firkin.Error{code: :service_unavailable}) =~
+               "<Message>Service is unable to handle request</Message>"
+
+      assert XML.error_response(%Firkin.Error{code: :slow_down}) =~
+               "<Message>Please reduce your request rate</Message>"
+    end
   end
 
   describe "copy_object_response/1" do
