@@ -8,8 +8,9 @@
     {:dialyzer, "mix dialyzer"},
     {:doctor, "mix doctor"},
     {:ex_doc, "mix docs"},
-    {:audit, "mix deps.audit"},
+    {:audit, "mix hex.audit"},
     {:gettext, false},
+    {:mix_audit, false},
     {:sobelow, false}
   ]
 ]
