@@ -14,7 +14,7 @@ Add `firkin` to your list of dependencies in `mix.exs`:
 ```elixir
 def deps do
   [
-    {:firkin, "~> 0.2.3"}
+    {:firkin, "~> 0.3.0"}
   ]
 end
 ```

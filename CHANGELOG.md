@@ -5,6 +5,19 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## v0.3.0 (2026-08-12)
+### Breaking Changes:
+
+* byte range handling per RFC 7233 (#42) by James Harton
+
+
+
+### Improvements:
+
+* replace `mix_audit` with `mix hex.audit` (#44) by James Harton
+
+* add `:service_unavailable` and `:slow_down` error codes (#43) by James Harton
+
 ## v0.2.3 (2026-07-08)
 
 
