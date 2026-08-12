@@ -299,6 +299,7 @@ defmodule Firkin.XML do
   defp default_message(:invalid_bucket_name), do: "The specified bucket is not valid"
   defp default_message(:invalid_part), do: "One or more of the specified parts could not be found"
   defp default_message(:invalid_part_order), do: "The list of parts was not in ascending order"
+  defp default_message(:invalid_range), do: "The requested range is not satisfiable"
   defp default_message(:no_such_bucket), do: "The specified bucket does not exist"
   defp default_message(:no_such_key), do: "The specified key does not exist"
   defp default_message(:no_such_upload), do: "The specified upload does not exist"

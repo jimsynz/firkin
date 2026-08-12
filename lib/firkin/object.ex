@@ -1,6 +1,11 @@
 defmodule Firkin.Object do
   @moduledoc """
   Represents an S3 object returned by GetObject.
+
+  `content_length` is the size of `body` — the length of the range served,
+  not of the whole object. `total_size` is the size of the whole object and
+  is required whenever a range was applied, since the `Content-Range`
+  response header names the object's full length.
   """
 
   @type t :: %__MODULE__{

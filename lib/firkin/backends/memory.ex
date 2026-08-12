@@ -205,27 +205,33 @@ defmodule Firkin.Backends.Memory do
         {:error, %Firkin.Error{code: :no_such_key}}
 
       obj ->
-        {body, content_length} = apply_range(obj.body, opts.range)
-
-        {:ok,
-         %Firkin.Object{
-           body: body,
-           content_type: obj.content_type,
-           content_length: content_length,
-           total_size: obj.size,
-           etag: obj.etag,
-           last_modified: obj.last_modified,
-           metadata: obj.metadata
-         }}
+        with {:ok, body, content_length} <- apply_range(obj.body, opts.range) do
+          {:ok,
+           %Firkin.Object{
+             body: body,
+             content_type: obj.content_type,
+             content_length: content_length,
+             total_size: obj.size,
+             etag: obj.etag,
+             last_modified: obj.last_modified,
+             metadata: obj.metadata
+           }}
+        end
     end
   end
 
-  defp apply_range(body, nil), do: {body, byte_size(body)}
+  defp apply_range(body, range) do
+    case Firkin.GetOpts.resolve_range(range, byte_size(body)) do
+      :none ->
+        {:ok, body, byte_size(body)}
 
-  defp apply_range(body, {start_byte, end_byte}) do
-    clamped_end = min(end_byte, byte_size(body) - 1)
-    length = clamped_end - start_byte + 1
-    {binary_part(body, start_byte, length), length}
+      {:ok, {first_byte, last_byte}} ->
+        length = last_byte - first_byte + 1
+        {:ok, binary_part(body, first_byte, length), length}
+
+      :unsatisfiable ->
+        {:error, %Firkin.Error{code: :invalid_range}}
+    end
   end
 
   @impl true

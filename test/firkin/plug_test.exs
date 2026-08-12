@@ -71,6 +71,7 @@ defmodule Firkin.PlugTest do
     test "returns 404 for non-existent bucket", %{opts: opts} do
       conn = signed_conn(:head, "/no-such-bucket") |> call(opts)
       assert conn.status == 404
+      assert conn.resp_body == ""
     end
   end
 
@@ -145,6 +146,62 @@ defmodule Firkin.PlugTest do
       assert conn.resp_body == ""
     end
 
+    test "HeadObject with a Range returns 206 and the range headers", %{opts: opts} do
+      signed_conn(:put, "/obj-bucket/head-range.txt", body: "0123456789ABCDEF") |> call(opts)
+
+      conn =
+        signed_conn(:head, "/obj-bucket/head-range.txt", headers: [{"range", "bytes=5-9"}])
+        |> call(opts)
+
+      assert conn.status == 206
+      assert Plug.Conn.get_resp_header(conn, "content-length") == ["5"]
+      assert Plug.Conn.get_resp_header(conn, "content-range") == ["bytes 5-9/16"]
+      assert conn.resp_body == ""
+    end
+
+    test "HeadObject resolves open-ended and suffix Ranges", %{opts: opts} do
+      signed_conn(:put, "/obj-bucket/head-open.txt", body: "0123456789ABCDEF") |> call(opts)
+
+      open =
+        signed_conn(:head, "/obj-bucket/head-open.txt", headers: [{"range", "bytes=10-"}])
+        |> call(opts)
+
+      assert open.status == 206
+      assert Plug.Conn.get_resp_header(open, "content-range") == ["bytes 10-15/16"]
+
+      suffix =
+        signed_conn(:head, "/obj-bucket/head-open.txt", headers: [{"range", "bytes=-6"}])
+        |> call(opts)
+
+      assert suffix.status == 206
+      assert Plug.Conn.get_resp_header(suffix, "content-range") == ["bytes 10-15/16"]
+    end
+
+    test "HeadObject with an unsatisfiable Range returns 416", %{opts: opts} do
+      signed_conn(:put, "/obj-bucket/head-416.txt", body: "0123456789") |> call(opts)
+
+      conn =
+        signed_conn(:head, "/obj-bucket/head-416.txt", headers: [{"range", "bytes=20-30"}])
+        |> call(opts)
+
+      assert conn.status == 416
+      assert conn.resp_body == ""
+    end
+
+    test "HeadObject for a non-existent key returns 404 without a body", %{opts: opts} do
+      conn = signed_conn(:head, "/obj-bucket/nonexistent") |> call(opts)
+      assert conn.status == 404
+      assert conn.resp_body == ""
+    end
+
+    test "HeadObject advertises byte ranges", %{opts: opts} do
+      signed_conn(:put, "/obj-bucket/head-accept.txt", body: "12345") |> call(opts)
+
+      conn = signed_conn(:head, "/obj-bucket/head-accept.txt") |> call(opts)
+      assert Plug.Conn.get_resp_header(conn, "accept-ranges") == ["bytes"]
+      assert Plug.Conn.get_resp_header(conn, "content-range") == []
+    end
+
     test "DeleteObject removes the object", %{opts: opts} do
       signed_conn(:put, "/obj-bucket/del.txt", body: "data") |> call(opts)
 
@@ -174,6 +231,96 @@ defmodule Firkin.PlugTest do
       assert [content_range] = Plug.Conn.get_resp_header(conn, "content-range")
       assert content_range =~ "bytes 5-9/"
       assert Plug.Conn.get_resp_header(conn, "accept-ranges") == ["bytes"]
+    end
+
+    test "GetObject with an open-ended Range serves to the end of the object", %{opts: opts} do
+      signed_conn(:put, "/obj-bucket/open.txt", body: "0123456789ABCDEF") |> call(opts)
+
+      conn =
+        signed_conn(:get, "/obj-bucket/open.txt", headers: [{"range", "bytes=10-"}])
+        |> call(opts)
+
+      assert conn.status == 206
+      assert conn.resp_body == "ABCDEF"
+      assert Plug.Conn.get_resp_header(conn, "content-range") == ["bytes 10-15/16"]
+      assert Plug.Conn.get_resp_header(conn, "content-length") == ["6"]
+    end
+
+    test "GetObject with a suffix Range serves the final bytes", %{opts: opts} do
+      signed_conn(:put, "/obj-bucket/suffix.txt", body: "0123456789ABCDEF") |> call(opts)
+
+      conn =
+        signed_conn(:get, "/obj-bucket/suffix.txt", headers: [{"range", "bytes=-6"}])
+        |> call(opts)
+
+      assert conn.status == 206
+      assert conn.resp_body == "ABCDEF"
+      assert Plug.Conn.get_resp_header(conn, "content-range") == ["bytes 10-15/16"]
+      assert Plug.Conn.get_resp_header(conn, "content-length") == ["6"]
+    end
+
+    test "GetObject with a suffix longer than the object serves the whole object", %{opts: opts} do
+      signed_conn(:put, "/obj-bucket/big-suffix.txt", body: "0123456789") |> call(opts)
+
+      conn =
+        signed_conn(:get, "/obj-bucket/big-suffix.txt", headers: [{"range", "bytes=-99"}])
+        |> call(opts)
+
+      assert conn.status == 206
+      assert conn.resp_body == "0123456789"
+      assert Plug.Conn.get_resp_header(conn, "content-range") == ["bytes 0-9/10"]
+    end
+
+    test "GetObject with a Range past the end of the object returns 416", %{opts: opts} do
+      signed_conn(:put, "/obj-bucket/short.txt", body: "0123456789") |> call(opts)
+
+      conn =
+        signed_conn(:get, "/obj-bucket/short.txt", headers: [{"range", "bytes=10-20"}])
+        |> call(opts)
+
+      assert conn.status == 416
+      assert conn.resp_body =~ "InvalidRange"
+    end
+
+    test "GetObject with a zero-length suffix Range returns 416", %{opts: opts} do
+      signed_conn(:put, "/obj-bucket/zero.txt", body: "0123456789") |> call(opts)
+
+      conn =
+        signed_conn(:get, "/obj-bucket/zero.txt", headers: [{"range", "bytes=-0"}])
+        |> call(opts)
+
+      assert conn.status == 416
+      assert conn.resp_body =~ "InvalidRange"
+    end
+
+    test "GetObject ignores an unsatisfiable Range on an empty object", %{opts: opts} do
+      signed_conn(:put, "/obj-bucket/empty.txt", body: "") |> call(opts)
+
+      conn =
+        signed_conn(:get, "/obj-bucket/empty.txt", headers: [{"range", "bytes=0-9"}])
+        |> call(opts)
+
+      assert conn.status == 416
+    end
+
+    for {description, range} <- [
+          {"a backwards range", "bytes=9-2"},
+          {"a non-numeric range", "bytes=abc-def"},
+          {"a trailing-garbage range", "bytes=0-9x"},
+          {"a multi-range request", "bytes=0-1,4-5"},
+          {"an unsupported unit", "items=0-9"}
+        ] do
+      test "GetObject ignores #{description} and returns the whole object", %{opts: opts} do
+        signed_conn(:put, "/obj-bucket/ignored.txt", body: "0123456789") |> call(opts)
+
+        conn =
+          signed_conn(:get, "/obj-bucket/ignored.txt", headers: [{"range", unquote(range)}])
+          |> call(opts)
+
+        assert conn.status == 200
+        assert conn.resp_body == "0123456789"
+        assert Plug.Conn.get_resp_header(conn, "content-range") == []
+      end
     end
 
     test "GetObject without Range returns 200 with accept-ranges", %{opts: opts} do

@@ -24,6 +24,7 @@ defmodule Firkin.Error do
           | :invalid_bucket_name
           | :invalid_part
           | :invalid_part_order
+          | :invalid_range
           | :no_such_bucket
           | :no_such_key
           | :no_such_upload
@@ -53,6 +54,7 @@ defmodule Firkin.Error do
   def to_http_status(:bucket_already_exists), do: 409
   def to_http_status(:bucket_not_empty), do: 409
   def to_http_status(:precondition_failed), do: 412
+  def to_http_status(:invalid_range), do: 416
   def to_http_status(:internal_error), do: 500
   def to_http_status(:not_implemented), do: 501
 
@@ -69,6 +71,7 @@ defmodule Firkin.Error do
   def to_s3_code(:invalid_bucket_name), do: "InvalidBucketName"
   def to_s3_code(:invalid_part), do: "InvalidPart"
   def to_s3_code(:invalid_part_order), do: "InvalidPartOrder"
+  def to_s3_code(:invalid_range), do: "InvalidRange"
   def to_s3_code(:no_such_bucket), do: "NoSuchBucket"
   def to_s3_code(:no_such_key), do: "NoSuchKey"
   def to_s3_code(:no_such_upload), do: "NoSuchUpload"

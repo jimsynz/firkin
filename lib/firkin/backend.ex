@@ -37,6 +37,13 @@ defmodule Firkin.Backend do
   @callback get_bucket_location(auth_context(), bucket()) ::
               {:ok, String.t()} | {:error, s3_error()}
 
+  # `Firkin.GetOpts.range` may carry an unresolved bound — `{first, nil}`
+  # for "to the end" and `{nil, suffix}` for "the last N bytes" — because
+  # only the backend knows the object's size. Pass it through
+  # `Firkin.GetOpts.resolve_range/2`, which clamps the range and reports
+  # `:unsatisfiable` for ranges that name no bytes of the object; those
+  # must be answered with `{:error, %Firkin.Error{code: :invalid_range}}`.
+  # `Firkin.Object.total_size` is required whenever a range was applied.
   @callback get_object(auth_context(), bucket(), key(), Firkin.GetOpts.t()) ::
               {:ok, Firkin.Object.t()} | {:error, s3_error()}
 

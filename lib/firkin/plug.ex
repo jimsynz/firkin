@@ -349,6 +349,7 @@ defmodule Firkin.Plug do
 
   defp handle_head_object(conn, backend, bucket, key, ctx, req_id) do
     head_opts = %Firkin.GetOpts{
+      range: parse_range(conn),
       if_match: get_header(conn, "if-match"),
       if_none_match: get_header(conn, "if-none-match"),
       if_modified_since: parse_http_date(get_header(conn, "if-modified-since")),
@@ -356,14 +357,15 @@ defmodule Firkin.Plug do
     }
 
     with {:ok, meta} <- backend.head_object(ctx, bucket, key),
-         :ok <- check_preconditions(head_opts, meta.etag, meta.last_modified) do
+         :ok <- check_preconditions(head_opts, meta.etag, meta.last_modified),
+         {:ok, status, conn} <- put_head_range(conn, head_opts.range, meta) do
       conn
+      |> Plug.Conn.put_resp_header("accept-ranges", "bytes")
       |> Plug.Conn.put_resp_header("etag", ensure_quoted(meta.etag))
       |> Plug.Conn.put_resp_header("content-type", meta.content_type)
-      |> Plug.Conn.put_resp_header("content-length", to_string(meta.size))
       |> Plug.Conn.put_resp_header("last-modified", format_http_date(meta.last_modified))
       |> put_user_metadata(meta.metadata)
-      |> Plug.Conn.send_resp(200, "")
+      |> Plug.Conn.send_resp(status, "")
     else
       {:error, %Firkin.Error{} = error} ->
         send_error(conn, %{error | request_id: req_id})
@@ -577,12 +579,15 @@ defmodule Firkin.Plug do
 
   defp send_error(conn, %Firkin.Error{} = error) do
     status = Firkin.Error.to_http_status(error.code)
-    xml = Firkin.XML.error_response(error)
+
+    # A HEAD response carries no body (RFC 7231 §4.3.2), so the error
+    # document is dropped and only the status reaches the client.
+    body = if conn.method == "HEAD", do: "", else: Firkin.XML.error_response(error)
 
     conn
     |> Plug.Conn.put_private(:firkin_error_code, error.code)
     |> Plug.Conn.put_resp_content_type("application/xml")
-    |> Plug.Conn.send_resp(status, xml)
+    |> Plug.Conn.send_resp(status, body)
   end
 
   defp extract_bucket_key(conn, hostname) do
@@ -768,11 +773,50 @@ defmodule Firkin.Plug do
 
   defp maybe_put_content_range(conn, nil, _object), do: conn
 
-  defp maybe_put_content_range(conn, {start_byte, _end_byte}, object) do
-    actual_end = start_byte + object.content_length - 1
-    total = object.total_size || "*"
-    Plug.Conn.put_resp_header(conn, "content-range", "bytes #{start_byte}-#{actual_end}/#{total}")
+  defp maybe_put_content_range(conn, range, object) do
+    first_byte = first_byte_served(range, object)
+    last_byte = first_byte + object.content_length - 1
+
+    Plug.Conn.put_resp_header(
+      conn,
+      "content-range",
+      "bytes #{first_byte}-#{last_byte}/#{object.total_size || "*"}"
+    )
   end
+
+  # HeadObject resolves the range itself rather than handing it to the
+  # backend: the response carries no body, and `head_object/3` has already
+  # reported the object's size.
+  defp put_head_range(conn, range, meta) do
+    case Firkin.GetOpts.resolve_range(range, meta.size) do
+      :none ->
+        {:ok, 200, Plug.Conn.put_resp_header(conn, "content-length", to_string(meta.size))}
+
+      {:ok, {first_byte, last_byte}} ->
+        conn =
+          conn
+          |> Plug.Conn.put_resp_header("content-length", to_string(last_byte - first_byte + 1))
+          |> Plug.Conn.put_resp_header(
+            "content-range",
+            "bytes #{first_byte}-#{last_byte}/#{meta.size}"
+          )
+
+        {:ok, 206, conn}
+
+      :unsatisfiable ->
+        {:error, %Firkin.Error{code: :invalid_range}}
+    end
+  end
+
+  defp first_byte_served({nil, _suffix_length}, %{total_size: nil}) do
+    raise ArgumentError,
+          "backend must set Firkin.Object.total_size to serve a suffix range"
+  end
+
+  defp first_byte_served({nil, _suffix_length}, object),
+    do: max(0, object.total_size - object.content_length)
+
+  defp first_byte_served({first_byte, _last_byte}, _object), do: first_byte
 
   defp put_user_metadata(conn, metadata) do
     Enum.reduce(metadata, conn, fn {k, v}, acc ->
@@ -794,11 +838,40 @@ defmodule Firkin.Plug do
     end
   end
 
+  # Parses a byte-range-spec per RFC 7233 §2.1: `first-last`, `first-` or
+  # `-suffix`. An open bound is carried through as `nil` for the backend to
+  # resolve against the object size, which the Plug does not know yet.
+  #
+  # Anything else — a malformed spec, a backwards range, or a multi-range
+  # request, which Firkin does not serve — yields `nil`, and the Range
+  # header is ignored in favour of a `200` with the whole object.
   defp parse_byte_range(range_str) do
-    with [start_str, end_str] <- String.split(range_str, "-", parts: 2),
-         {start_byte, ""} <- Integer.parse(start_str),
-         {end_byte, ""} <- Integer.parse(end_str) do
-      {start_byte, end_byte}
+    case String.split(range_str, "-", parts: 2) do
+      [first_str, ""] -> open_ended_range(first_str)
+      ["", suffix_str] -> suffix_range(suffix_str)
+      [first_str, last_str] -> closed_range(first_str, last_str)
+      _ -> nil
+    end
+  end
+
+  defp open_ended_range(first_str) do
+    case Integer.parse(first_str) do
+      {first_byte, ""} when first_byte >= 0 -> {first_byte, nil}
+      _ -> nil
+    end
+  end
+
+  defp suffix_range(suffix_str) do
+    case Integer.parse(suffix_str) do
+      {suffix_length, ""} when suffix_length >= 0 -> {nil, suffix_length}
+      _ -> nil
+    end
+  end
+
+  defp closed_range(first_str, last_str) do
+    with {first_byte, ""} when first_byte >= 0 <- Integer.parse(first_str),
+         {last_byte, ""} when last_byte >= first_byte <- Integer.parse(last_str) do
+      {first_byte, last_byte}
     else
       _ -> nil
     end
