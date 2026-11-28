@@ -69,7 +69,7 @@ defmodule Firkin.MixProject do
       {:ex_check, "~> 0.17", only: [:dev, :test], runtime: false},
       {:ex_doc, "~> 0.40", only: [:dev, :test], runtime: false},
       {:git_ops, "~> 2.4", only: [:dev, :test], runtime: false},
-      {:igniter, "~> 0.8", only: [:dev, :test]}
+      {:igniter, "~> 0.9", only: [:dev, :test]}
     ]
   end
 end
